@@ -1,0 +1,52 @@
+# Ejecuta repo_scorecard como etapa del pipeline.
+# Para fallar si el score es bajo: define env MIN_SCORE en este job (ej: 50).
+name: Repo Scorecard
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      min_score:
+        description: "Score mínimo (vacío = no fallar)"
+        required: false
+        type: string
+
+jobs:
+  scorecard:
+    runs-on: ubuntu-latest
+    env:
+      # Fuerza fallo del job si score < MIN_SCORE. 0 = no comprobar.
+      MIN_SCORE: ${{ github.event.inputs.min_score || '0' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run repo_scorecard
+        id: scorecard
+        run: |
+          python repo_scorecard.py --path . --out json > scorecard.json
+          SCORE=$(python -c "import json; d=json.load(open('scorecard.json')); print(d['score'])")
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          python -c "
+          import json
+          d = json.load(open('scorecard.json'))
+          print('Score:', d['score'], '/ 100  Passed:', d['passed'], ' Failed:', d['failed'])
+          for c in d['checks']:
+            ok = 'yes' if c['passed'] else 'no'
+            print(' ', c['id'], c['weight'], ok, c.get('evidence') or '-')
+          "
+          if [ "${MIN_SCORE:-0}" -gt 0 ] && [ "$SCORE" -lt "${MIN_SCORE:-0}" ]; then
+            echo "::error::Score $SCORE por debajo del mínimo $MIN_SCORE"
+            exit 1
+          fi
+
+      - name: Score summary
+        run: echo "Score del repositorio: ${{ steps.scorecard.outputs.score }}/100"

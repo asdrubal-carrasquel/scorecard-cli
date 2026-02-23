@@ -1,0 +1,46 @@
+# CI: tests unitarios e de integración en paralelo + scorecard
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install pytest
+      - name: Unit tests
+        run: pytest tests/unit -m unit -v
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install pytest
+      - name: Integration tests
+        run: pytest tests/integration -m integration -v
+
+  scorecard:
+    name: Repo Scorecard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run repo_scorecard
+        run: python repo_scorecard.py --path . --out text
